@@ -20,6 +20,20 @@
 
     <section class="display-stage">
       <div class="strike-bank" id="strikeBank" aria-label="Strikes"></div>
+      <div class="display-scoreboard" aria-label="Scores">
+        <div class="display-score">
+          <span>Team 1</span>
+          <strong id="displayTeamOne">0</strong>
+        </div>
+        <div class="display-score round">
+          <span>Round's Bank</span>
+          <strong id="displayRoundScore">0</strong>
+        </div>
+        <div class="display-score">
+          <span>Team 2</span>
+          <strong id="displayTeamTwo">0</strong>
+        </div>
+      </div>
       <div class="question-card">
         <h1 id="questionDisplay"></h1>
       </div>
@@ -40,6 +54,9 @@
     const answerGrid = document.querySelector("#answerGrid");
     const strikeBank = document.querySelector("#strikeBank");
     const strikeFlash = document.querySelector("#strikeFlash");
+    const displayTeamOne = document.querySelector("#displayTeamOne");
+    const displayTeamTwo = document.querySelector("#displayTeamTwo");
+    const displayRoundScore = document.querySelector("#displayRoundScore");
     let lastPulse = AINSFeud.getState().strikePulse;
 
     function renderAnswers(state) {
@@ -95,6 +112,9 @@
 
     AINSFeud.subscribe((state) => {
       questionDisplay.textContent = state.question || "Question";
+      displayTeamOne.textContent = state.teamScores[0];
+      displayTeamTwo.textContent = state.teamScores[1];
+      displayRoundScore.textContent = state.roundScore;
       renderAnswers(state);
       renderStrikes(state);
     });

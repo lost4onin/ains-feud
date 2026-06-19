@@ -24,6 +24,19 @@
     <section class="control-layout">
       <section class="panel question-panel" aria-label="Question and answer setup">
         <h1>Question Setup</h1>
+        <div class="round-manager" aria-label="Saved rounds">
+          <div class="field round-select-field">
+            <label for="roundSelect">Saved Rounds</label>
+            <select id="roundSelect"></select>
+          </div>
+          <div class="field round-name-field">
+            <label for="roundNameInput">Round Name</label>
+            <input id="roundNameInput" maxlength="120" autocomplete="off" />
+          </div>
+          <button class="control-button" id="addRound" type="button">Add Round</button>
+          <button class="control-button dark" id="saveRound" type="button">Save Changes</button>
+          <div class="round-message" id="roundMessage" aria-live="polite"></div>
+        </div>
         <div class="field">
           <label for="questionInput">Question</label>
           <input id="questionInput" autocomplete="off" />
@@ -33,10 +46,34 @@
 
       <section class="panel reveal-panel" aria-label="Answer reveal controls">
         <h2>Answer Controls</h2>
+        <div class="score-control" aria-label="Scoring controls">
+          <div class="score-control-grid">
+            <div class="score-box">
+              <span>Team 1</span>
+              <strong id="teamOneScore">0</strong>
+            </div>
+            <div class="score-box bank">
+              <span>Round's Bank</span>
+              <strong id="roundScore">0</strong>
+            </div>
+            <div class="score-box">
+              <span>Team 2</span>
+              <strong id="teamTwoScore">0</strong>
+            </div>
+          </div>
+
+          <div class="team-picker" role="group" aria-label="First scoring team">
+            <button class="control-button dark" id="teamOneStart" type="button">Team 1 First</button>
+            <button class="control-button dark" id="teamTwoStart" type="button">Team 2 First</button>
+          </div>
+
+          <div class="score-status" id="scoreStatus" aria-live="polite"></div>
+          <button class="control-button red" id="resetScores" type="button">Reset Scores</button>
+        </div>
         <div class="button-grid three">
           <button class="control-button dark" id="revealAll" type="button">Reveal All</button>
           <button class="control-button" id="hideAll" type="button">Hide All</button>
-          <button class="control-button gold" id="resetRound" type="button">New Round</button>
+          <button class="control-button gold" id="resetRound" type="button">Reset Round</button>
         </div>
 
         <div class="strike-controls">
@@ -57,6 +94,11 @@
   <script src="feud-state.js"></script>
   <script>
     const questionInput = document.querySelector("#questionInput");
+    const roundSelect = document.querySelector("#roundSelect");
+    const roundNameInput = document.querySelector("#roundNameInput");
+    const addRound = document.querySelector("#addRound");
+    const saveRound = document.querySelector("#saveRound");
+    const roundMessage = document.querySelector("#roundMessage");
     const answerEditors = document.querySelector("#answerEditors");
     const revealButtons = document.querySelector("#revealButtons");
     const miniPreview = document.querySelector("#miniPreview");
@@ -65,7 +107,157 @@
     const resetRound = document.querySelector("#resetRound");
     const strikeButton = document.querySelector("#strikeButton");
     const clearStrikes = document.querySelector("#clearStrikes");
+    const teamOneScore = document.querySelector("#teamOneScore");
+    const teamTwoScore = document.querySelector("#teamTwoScore");
+    const roundScore = document.querySelector("#roundScore");
+    const teamOneStart = document.querySelector("#teamOneStart");
+    const teamTwoStart = document.querySelector("#teamTwoStart");
+    const resetScores = document.querySelector("#resetScores");
+    const scoreStatus = document.querySelector("#scoreStatus");
     let isRendering = false;
+    let savedRounds = [];
+    let roundRequestPending = false;
+
+    function setRoundMessage(message, isError) {
+      roundMessage.textContent = message;
+      roundMessage.classList.toggle("is-error", Boolean(isError));
+    }
+
+    function roundPayload() {
+      const state = AINSFeud.getState();
+      return {
+        name: roundNameInput.value.trim(),
+        question: state.question,
+        answers: state.answers.map((answer) => ({ text: answer.text, points: answer.points }))
+      };
+    }
+
+    function setRoundLoading(isLoading) {
+      roundRequestPending = isLoading;
+      roundSelect.disabled = isLoading;
+      addRound.disabled = isLoading;
+      saveRound.disabled = isLoading || !AINSFeud.getState().activeRoundId;
+    }
+
+    function applySavedRound(round) {
+      AINSFeud.setState((state) => {
+        state.activeRoundId = round.id;
+        state.activeRoundName = round.name;
+        state.question = round.question;
+        state.answers = round.answers.map((answer) => ({
+          text: answer.text,
+          points: answer.points,
+          revealed: false,
+          scoredBy: null,
+          scoredPoints: 0
+        }));
+        state.strikes = 0;
+        state.roundScore = 0;
+        state.roundOwner = null;
+        return state;
+      });
+    }
+
+    function renderRoundOptions(activeRoundId) {
+      roundSelect.innerHTML = "";
+      savedRounds.forEach((round) => {
+        const option = document.createElement("option");
+        option.value = round.id;
+        option.textContent = round.name;
+        option.selected = Number(round.id) === Number(activeRoundId);
+        roundSelect.append(option);
+      });
+    }
+
+    async function requestJson(url, options) {
+      const response = await fetch(url, options);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "The database request failed.");
+      }
+      return body;
+    }
+
+    async function refreshRounds(selectId) {
+      savedRounds = await requestJson("/api/rounds");
+      const state = AINSFeud.getState();
+      const activeId = selectId || state.activeRoundId;
+      renderRoundOptions(activeId);
+      return savedRounds.find((round) => Number(round.id) === Number(activeId));
+    }
+
+    async function loadRound(roundId) {
+      setRoundLoading(true);
+      setRoundMessage("Loading round...");
+      try {
+        const round = await requestJson(`/api/rounds/${roundId}`);
+        applySavedRound(round);
+        renderRoundOptions(round.id);
+        setRoundMessage(`${round.name} is now live.`);
+      } catch (error) {
+        setRoundMessage(error.message, true);
+      } finally {
+        setRoundLoading(false);
+      }
+    }
+
+    async function initializeRounds() {
+      setRoundLoading(true);
+      try {
+        const activeRound = await refreshRounds();
+        if (activeRound) {
+          setRoundMessage(`${activeRound.name} is ready.`);
+        } else if (savedRounds.length) {
+          await loadRound(savedRounds[0].id);
+        }
+      } catch (error) {
+        setRoundMessage(`${error.message} Start this page with npm start.`, true);
+      } finally {
+        setRoundLoading(false);
+      }
+    }
+
+    function resetAnswerScore(answer) {
+      return Object.assign({}, answer, {
+        revealed: false,
+        scoredBy: null,
+        scoredPoints: 0
+      });
+    }
+
+    function otherTeam(team) {
+      return team === 0 ? 1 : 0;
+    }
+
+    function scoreRevealedAnswer(state, answerIndex) {
+      const answer = state.answers[answerIndex];
+      const points = Number(answer.points) || 0;
+
+      if (answer.scoredBy !== null || state.roundOwner === null) {
+        return;
+      }
+
+      if (state.strikes >= 3) {
+        const originalOwner = state.roundOwner;
+        const stealingTeam = otherTeam(originalOwner);
+        const previousBank = Number(state.roundScore) || 0;
+        const stolenBank = previousBank + points;
+
+        state.teamScores[originalOwner] = Math.max(0, state.teamScores[originalOwner] - previousBank);
+        state.teamScores[stealingTeam] += stolenBank;
+        state.roundScore = stolenBank;
+        state.roundOwner = stealingTeam;
+        state.strikes = 0;
+        answer.scoredBy = stealingTeam;
+        answer.scoredPoints = points;
+        return;
+      }
+
+      state.roundScore += points;
+      state.teamScores[state.roundOwner] += points;
+      answer.scoredBy = state.roundOwner;
+      answer.scoredPoints = points;
+    }
 
     function updateAnswer(index, patch) {
       AINSFeud.setState((state) => {
@@ -147,8 +339,20 @@
         button.type = "button";
         button.className = `reveal-button${answer.revealed ? " is-revealed" : ""}`;
         button.setAttribute("aria-pressed", String(answer.revealed));
+        button.disabled = !answer.revealed && state.roundOwner === null;
         button.addEventListener("click", () => {
-          updateAnswer(answerIndex, { revealed: !answer.revealed });
+          AINSFeud.setState((nextState) => {
+            const nextAnswer = nextState.answers[answerIndex];
+            const isRevealing = !nextAnswer.revealed;
+
+            nextAnswer.revealed = isRevealing;
+
+            if (isRevealing) {
+              scoreRevealedAnswer(nextState, answerIndex);
+            }
+
+            return nextState;
+          });
         });
 
         const number = document.createElement("span");
@@ -183,6 +387,21 @@
       });
     }
 
+    function renderScoreControls(state) {
+      const hasScoredAnswers = state.answers.some((answer) => answer.scoredBy !== null);
+      const ownerLabel = state.roundOwner === null ? "Pick Team 1 or Team 2 before the first reveal." : `Scoring Team ${state.roundOwner + 1}`;
+      const stealLabel = state.strikes >= 3 && state.roundOwner !== null ? ` Steal is live: Team ${otherTeam(state.roundOwner) + 1} gets the bank with one right answer.` : "";
+
+      teamOneScore.textContent = state.teamScores[0];
+      teamTwoScore.textContent = state.teamScores[1];
+      roundScore.textContent = state.roundScore;
+      scoreStatus.textContent = `${ownerLabel}${stealLabel}`;
+      teamOneStart.classList.toggle("is-selected", state.roundOwner === 0);
+      teamTwoStart.classList.toggle("is-selected", state.roundOwner === 1);
+      teamOneStart.disabled = hasScoredAnswers;
+      teamTwoStart.disabled = hasScoredAnswers;
+    }
+
     function render(state) {
       isRendering = true;
 
@@ -190,7 +409,18 @@
         questionInput.value = state.question;
       }
 
+      if (document.activeElement !== roundNameInput && roundNameInput.value !== state.activeRoundName) {
+        roundNameInput.value = state.activeRoundName;
+      }
+
+      if (!roundRequestPending && roundSelect.value !== String(state.activeRoundId || "")) {
+        roundSelect.value = String(state.activeRoundId || "");
+      }
+
+      saveRound.disabled = roundRequestPending || !state.activeRoundId;
+
       renderEditors(state);
+      renderScoreControls(state);
       renderRevealButtons(state);
       renderMiniPreview(state);
       isRendering = false;
@@ -205,6 +435,69 @@
         state.question = event.target.value;
         return state;
       });
+    });
+
+    roundNameInput.addEventListener("input", (event) => {
+      if (isRendering) {
+        return;
+      }
+
+      AINSFeud.setState((state) => {
+        state.activeRoundName = event.target.value;
+        return state;
+      });
+    });
+
+    roundSelect.addEventListener("change", () => {
+      if (roundSelect.value) {
+        loadRound(roundSelect.value);
+      }
+    });
+
+    addRound.addEventListener("click", async () => {
+      setRoundLoading(true);
+      setRoundMessage("Adding round...");
+      try {
+        const round = await requestJson("/api/rounds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(roundPayload())
+        });
+        await refreshRounds(round.id);
+        applySavedRound(round);
+        setRoundMessage(`${round.name} was added and is now live.`);
+      } catch (error) {
+        setRoundMessage(error.message, true);
+      } finally {
+        setRoundLoading(false);
+      }
+    });
+
+    saveRound.addEventListener("click", async () => {
+      const activeRoundId = AINSFeud.getState().activeRoundId;
+      if (!activeRoundId) {
+        return;
+      }
+
+      setRoundLoading(true);
+      setRoundMessage("Saving changes...");
+      try {
+        const round = await requestJson(`/api/rounds/${activeRoundId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(roundPayload())
+        });
+        await refreshRounds(round.id);
+        AINSFeud.setState((state) => {
+          state.activeRoundName = round.name;
+          return state;
+        });
+        setRoundMessage(`${round.name} was saved.`);
+      } catch (error) {
+        setRoundMessage(error.message, true);
+      } finally {
+        setRoundLoading(false);
+      }
     });
 
     revealAll.addEventListener("click", () => {
@@ -223,8 +516,10 @@
 
     resetRound.addEventListener("click", () => {
       AINSFeud.setState((state) => {
-        state.answers = state.answers.map((answer) => Object.assign({}, answer, { revealed: false }));
+        state.answers = state.answers.map(resetAnswerScore);
         state.strikes = 0;
+        state.roundScore = 0;
+        state.roundOwner = null;
         return state;
       });
     });
@@ -244,7 +539,39 @@
       });
     });
 
+    teamOneStart.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        if (!state.answers.some((answer) => answer.scoredBy !== null)) {
+          state.roundOwner = 0;
+        }
+
+        return state;
+      });
+    });
+
+    teamTwoStart.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        if (!state.answers.some((answer) => answer.scoredBy !== null)) {
+          state.roundOwner = 1;
+        }
+
+        return state;
+      });
+    });
+
+    resetScores.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.teamScores = [0, 0];
+        state.roundScore = 0;
+        state.roundOwner = null;
+        state.strikes = 0;
+        state.answers = state.answers.map(resetAnswerScore);
+        return state;
+      });
+    });
+
     AINSFeud.subscribe(render);
+    initializeRounds();
   </script>
 </body>
 </html>

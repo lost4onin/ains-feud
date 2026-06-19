@@ -1,0 +1,16 @@
+{
+  "name": "ains-feud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AINS Feud live game board and backstage controls",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.4"
+  }
+}

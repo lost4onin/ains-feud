@@ -45,7 +45,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -109,8 +110,63 @@ button {
   min-height: 0;
   padding: clamp(18px, 3vh, 34px) clamp(20px, 4vw, 58px) clamp(22px, 4vh, 44px);
   display: grid;
-  grid-template-rows: clamp(88px, 14vh, 140px) minmax(0, 1fr);
+  grid-template-rows: clamp(58px, 9vh, 86px) clamp(108px, 15vh, 146px) minmax(0, 1fr);
   gap: clamp(16px, 2.5vh, 28px);
+}
+
+.display-scoreboard {
+  width: min(780px, calc(100vw - 390px));
+  min-width: 430px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, .92fr) minmax(0, 1fr);
+  gap: clamp(16px, 2.2vw, 28px);
+}
+
+.display-score {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 4px solid var(--gold);
+  border-radius: 8px;
+  padding: 6px clamp(10px, 1.5vw, 18px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .14), transparent 44%),
+    radial-gradient(circle at 50% 20%, var(--blue-light), var(--blue) 54%, var(--blue-dark));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .28), inset 0 0 0 2px rgba(255, 255, 255, .26);
+  text-transform: uppercase;
+}
+
+.display-score.round {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .2), transparent 48%),
+    linear-gradient(160deg, var(--gold), #f09d22);
+  color: var(--midnight);
+}
+
+.display-score span,
+.display-score strong {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: .9;
+}
+
+.display-score span {
+  font-size: clamp(12px, 1.05vw, 17px);
+  white-space: nowrap;
+}
+
+.display-score strong {
+  font-size: clamp(26px, 4vw, 58px);
+  text-align: right;
+  text-shadow: 2px 3px 0 rgba(0, 0, 0, .35);
+}
+
+.display-score.round strong {
+  text-shadow: none;
 }
 
 .question-card {
@@ -119,7 +175,7 @@ button {
   margin: 0 auto;
   display: grid;
   place-items: center;
-  padding: clamp(12px, 2vh, 20px) clamp(18px, 3vw, 30px);
+  padding: clamp(10px, 1.5vh, 16px) clamp(28px, 4vw, 48px);
   border: 5px solid var(--gold);
   border-radius: 10px;
   background:
@@ -134,9 +190,9 @@ button {
   max-width: 100%;
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(22px, 4vw, 54px);
+  font-size: clamp(22px, 3vw, 44px);
   font-weight: 800;
-  line-height: .94;
+  line-height: 1;
   letter-spacing: 0;
   overflow-wrap: anywhere;
   text-shadow: 2px 4px 0 rgba(0, 0, 0, .55);
@@ -147,7 +203,7 @@ button {
   overflow: hidden;
   border: 7px solid var(--gold);
   border-radius: 42px 42px 18px 18px;
-  padding: clamp(22px, 3vw, 38px);
+  padding: clamp(12px, 1.5vw, 22px);
   background:
     radial-gradient(circle, var(--gold) 0 4px, transparent 5px) 0 0 / 28px 28px,
     linear-gradient(160deg, #210026, #2c0f45 45%, #4c1468 100%);
@@ -160,14 +216,14 @@ button {
 .answer-grid {
   position: relative;
   z-index: 1;
-  width: min(100%, 1110px);
+  width: 100%;
   height: 100%;
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(4, minmax(0, 1fr));
   gap: clamp(8px, 1.6vh, 14px) clamp(10px, 1.8vw, 18px);
-  padding: clamp(12px, 1.6vw, 22px);
+  padding: clamp(8px, 1vw, 14px);
   border: 5px solid var(--paper);
   border-radius: 8px;
   background: rgba(7, 0, 32, .88);
@@ -388,11 +444,11 @@ button {
 }
 
 .question-panel {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .reveal-panel {
-  grid-template-rows: auto auto auto minmax(0, 1.2fr) minmax(88px, .8fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1.2fr) minmax(88px, .8fr);
 }
 
 .field {
@@ -410,7 +466,8 @@ button {
 }
 
 .field input,
-.answer-editor input {
+.answer-editor input,
+.field select {
   width: 100%;
   min-width: 0;
   height: 40px;
@@ -423,9 +480,38 @@ button {
 }
 
 .field input:focus,
-.answer-editor input:focus {
+.answer-editor input:focus,
+.field select:focus {
   border-color: var(--violet);
   box-shadow: 0 0 0 3px rgba(177, 92, 208, .24);
+}
+
+.round-manager {
+  display: grid;
+  grid-template-columns: minmax(130px, .8fr) minmax(150px, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  padding: 9px;
+  border: 2px solid rgba(7, 0, 32, .12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .64);
+}
+
+.round-manager .control-button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.round-message {
+  grid-column: 1 / -1;
+  min-height: 16px;
+  color: rgba(7, 0, 32, .7);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.round-message.is-error {
+  color: #b42318;
 }
 
 .answer-editors {
@@ -448,7 +534,7 @@ button {
 }
 
 .answer-editor .wide {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .answer-editor-index {
@@ -490,6 +576,98 @@ button {
 .control-button.gold {
   background: var(--gold);
   color: var(--midnight);
+}
+
+.control-button:disabled,
+.reveal-button:disabled {
+  cursor: not-allowed;
+  opacity: .54;
+  transform: none;
+}
+
+.control-button.is-selected {
+  background: var(--gold);
+  color: var(--midnight);
+}
+
+.score-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(160px, .75fr) minmax(112px, .4fr);
+  grid-template-rows: auto auto;
+  gap: 9px;
+  padding: 10px;
+  border: 2px solid rgba(7, 0, 32, .12);
+  border-radius: 8px;
+  background: rgba(7, 0, 32, .06);
+}
+
+.score-control-grid {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, .8fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.score-box {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border-radius: 7px;
+  padding: 8px;
+  background: var(--midnight);
+  color: var(--white);
+}
+
+.score-box.bank {
+  background: var(--gold);
+  color: var(--midnight);
+}
+
+.score-box span {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: .82;
+}
+
+.score-box strong {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: .9;
+}
+
+.team-picker {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.score-status {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, .76);
+  color: rgba(7, 0, 32, .76);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+#resetScores {
+  grid-column: 3;
+  grid-row: 1;
 }
 
 .reveal-buttons {
@@ -684,6 +862,44 @@ button {
 
   .display-stage {
     padding: 12px 12px 18px;
+    grid-template-rows: 52px clamp(82px, 13vh, 118px) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .display-scoreboard {
+    width: calc(100% - 142px);
+    min-width: 0;
+    margin: 0 auto 0 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .display-score {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 2px;
+    padding: 4px 5px;
+    border-width: 3px;
+  }
+
+  .display-score span {
+    font-size: 9px;
+  }
+
+  .display-score strong {
+    font-size: 24px;
+  }
+
+  .strike-bank {
+    right: 12px;
+    top: 12px;
+    gap: 5px;
+  }
+
+  .strike-mark {
+    width: 40px;
+    border-width: 2px;
+    font-size: 32px;
   }
 
   .question-card {

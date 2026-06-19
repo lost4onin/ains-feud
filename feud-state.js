@@ -4,9 +4,14 @@
   const ORDER = [0, 4, 1, 5, 2, 6, 3, 7];
 
   const DEFAULT_STATE = {
+    activeRoundId: null,
+    activeRoundName: "Round 1",
     question: "Name something AI helps people do faster",
     strikes: 0,
     strikePulse: 0,
+    teamScores: [0, 0],
+    roundScore: 0,
+    roundOwner: null,
     answers: [
       { text: "Write Emails", points: 32, revealed: false },
       { text: "Research", points: 24, revealed: false },
@@ -41,16 +46,29 @@
 
     safe.answers = DEFAULT_STATE.answers.map((fallback, index) => {
       const answer = answers[index] || {};
+      const scoredBy = answer.scoredBy;
+
       return {
         text: typeof answer.text === "string" ? answer.text : fallback.text,
         points: Number.isFinite(Number(answer.points)) ? Number(answer.points) : fallback.points,
-        revealed: Boolean(answer.revealed)
+        revealed: Boolean(answer.revealed),
+        scoredBy: scoredBy === 0 || scoredBy === 1 ? scoredBy : null,
+        scoredPoints: Number.isFinite(Number(answer.scoredPoints)) ? Number(answer.scoredPoints) : 0
       };
     });
 
     safe.question = typeof safe.question === "string" ? safe.question : DEFAULT_STATE.question;
+    safe.activeRoundId = Number.isInteger(Number(safe.activeRoundId)) && Number(safe.activeRoundId) > 0 ? Number(safe.activeRoundId) : null;
+    safe.activeRoundName = typeof safe.activeRoundName === "string" ? safe.activeRoundName : DEFAULT_STATE.activeRoundName;
     safe.strikes = Math.max(0, Math.min(3, Number(safe.strikes) || 0));
     safe.strikePulse = Number(safe.strikePulse) || 0;
+    safe.teamScores = Array.isArray(safe.teamScores) ? safe.teamScores : DEFAULT_STATE.teamScores;
+    safe.teamScores = [
+      Math.max(0, Number(safe.teamScores[0]) || 0),
+      Math.max(0, Number(safe.teamScores[1]) || 0)
+    ];
+    safe.roundScore = Math.max(0, Number(safe.roundScore) || 0);
+    safe.roundOwner = safe.roundOwner === 0 || safe.roundOwner === 1 ? safe.roundOwner : null;
 
     return safe;
   }
