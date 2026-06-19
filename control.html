@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AINS Feud Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="control-screen" aria-label="AINS Feud backstage controls">
+    <header class="control-topbar">
+      <div class="logo-shell">
+        <img src="ains-logo-cropped.png" alt="Artificial Intelligence National Summit Fourth Edition" />
+      </div>
+      <div class="operator-title">
+        <strong>Backstage Control</strong>
+        <span>Private operator page</span>
+      </div>
+    </header>
+
+    <section class="control-layout">
+      <section class="panel question-panel" aria-label="Question and answer setup">
+        <h1>Question Setup</h1>
+        <div class="field">
+          <label for="questionInput">Question</label>
+          <input id="questionInput" autocomplete="off" />
+        </div>
+        <div class="answer-editors" id="answerEditors"></div>
+      </section>
+
+      <section class="panel reveal-panel" aria-label="Answer reveal controls">
+        <h2>Answer Controls</h2>
+        <div class="button-grid three">
+          <button class="control-button dark" id="revealAll" type="button">Reveal All</button>
+          <button class="control-button" id="hideAll" type="button">Hide All</button>
+          <button class="control-button gold" id="resetRound" type="button">New Round</button>
+        </div>
+
+        <div class="strike-controls">
+          <button class="control-button red" id="strikeButton" type="button">Strike</button>
+          <button class="control-button dark" id="clearStrikes" type="button">Clear Strikes</button>
+        </div>
+
+        <div class="reveal-buttons" id="revealButtons"></div>
+
+        <div class="mini-preview">
+          <strong>Live Board Order</strong>
+          <div class="mini-preview-grid" id="miniPreview"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="feud-state.js"></script>
+  <script>
+    const questionInput = document.querySelector("#questionInput");
+    const answerEditors = document.querySelector("#answerEditors");
+    const revealButtons = document.querySelector("#revealButtons");
+    const miniPreview = document.querySelector("#miniPreview");
+    const revealAll = document.querySelector("#revealAll");
+    const hideAll = document.querySelector("#hideAll");
+    const resetRound = document.querySelector("#resetRound");
+    const strikeButton = document.querySelector("#strikeButton");
+    const clearStrikes = document.querySelector("#clearStrikes");
+    let isRendering = false;
+
+    function updateAnswer(index, patch) {
+      AINSFeud.setState((state) => {
+        state.answers[index] = Object.assign({}, state.answers[index], patch);
+        return state;
+      });
+    }
+
+    function buildEditors() {
+      if (answerEditors.children.length === 8) {
+        return;
+      }
+
+      answerEditors.innerHTML = "";
+
+      AINSFeud.defaults.answers.forEach((answer, index) => {
+        const editor = document.createElement("div");
+        editor.className = "answer-editor";
+
+        const textWrap = document.createElement("div");
+        textWrap.className = "wide";
+
+        const textLabel = document.createElement("label");
+        textLabel.htmlFor = `answerText${index}`;
+        textLabel.innerHTML = `<span class="answer-editor-index">${index + 1}</span> Answer`;
+
+        const textInput = document.createElement("input");
+        textInput.id = `answerText${index}`;
+        textInput.autocomplete = "off";
+        textInput.addEventListener("input", (event) => {
+          updateAnswer(index, { text: event.target.value });
+        });
+
+        textWrap.append(textLabel, textInput);
+
+        const pointsWrap = document.createElement("div");
+        const pointsLabel = document.createElement("label");
+        pointsLabel.htmlFor = `answerPoints${index}`;
+        pointsLabel.textContent = "Points";
+
+        const pointsInput = document.createElement("input");
+        pointsInput.id = `answerPoints${index}`;
+        pointsInput.type = "number";
+        pointsInput.min = "0";
+        pointsInput.max = "99";
+        pointsInput.addEventListener("input", (event) => {
+          updateAnswer(index, { points: Number(event.target.value) || 0 });
+        });
+
+        pointsWrap.append(pointsLabel, pointsInput);
+        editor.append(textWrap, pointsWrap);
+        answerEditors.append(editor);
+      });
+    }
+
+    function renderEditors(state) {
+      buildEditors();
+
+      state.answers.forEach((answer, index) => {
+        const textInput = document.querySelector(`#answerText${index}`);
+        const pointsInput = document.querySelector(`#answerPoints${index}`);
+
+        if (document.activeElement !== textInput && textInput.value !== answer.text) {
+          textInput.value = answer.text;
+        }
+
+        if (document.activeElement !== pointsInput && Number(pointsInput.value) !== Number(answer.points)) {
+          pointsInput.value = answer.points;
+        }
+      });
+    }
+
+    function renderRevealButtons(state) {
+      revealButtons.innerHTML = "";
+
+      AINSFeud.answerOrder.forEach((answerIndex) => {
+        const answer = state.answers[answerIndex];
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `reveal-button${answer.revealed ? " is-revealed" : ""}`;
+        button.setAttribute("aria-pressed", String(answer.revealed));
+        button.addEventListener("click", () => {
+          updateAnswer(answerIndex, { revealed: !answer.revealed });
+        });
+
+        const number = document.createElement("span");
+        number.className = "number";
+        number.textContent = answerIndex + 1;
+
+        const text = document.createElement("span");
+        text.className = "text";
+        text.textContent = answer.text || "Answer";
+
+        const points = document.createElement("span");
+        points.className = "points";
+        points.textContent = answer.points || 0;
+
+        button.append(number, text, points);
+        revealButtons.append(button);
+      });
+    }
+
+    function renderMiniPreview(state) {
+      miniPreview.innerHTML = "";
+
+      AINSFeud.answerOrder.forEach((answerIndex) => {
+        const answer = state.answers[answerIndex];
+        const item = document.createElement("span");
+        item.textContent = `${answerIndex + 1}. ${answer.revealed ? answer.text || "Answer" : "Hidden"}`;
+
+        const points = document.createElement("em");
+        points.textContent = answer.revealed ? answer.points || 0 : "";
+        item.append(points);
+        miniPreview.append(item);
+      });
+    }
+
+    function render(state) {
+      isRendering = true;
+
+      if (document.activeElement !== questionInput && questionInput.value !== state.question) {
+        questionInput.value = state.question;
+      }
+
+      renderEditors(state);
+      renderRevealButtons(state);
+      renderMiniPreview(state);
+      isRendering = false;
+    }
+
+    questionInput.addEventListener("input", (event) => {
+      if (isRendering) {
+        return;
+      }
+
+      AINSFeud.setState((state) => {
+        state.question = event.target.value;
+        return state;
+      });
+    });
+
+    revealAll.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.answers = state.answers.map((answer) => Object.assign({}, answer, { revealed: true }));
+        return state;
+      });
+    });
+
+    hideAll.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.answers = state.answers.map((answer) => Object.assign({}, answer, { revealed: false }));
+        return state;
+      });
+    });
+
+    resetRound.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.answers = state.answers.map((answer) => Object.assign({}, answer, { revealed: false }));
+        state.strikes = 0;
+        return state;
+      });
+    });
+
+    strikeButton.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.strikes = Math.min(3, state.strikes + 1);
+        state.strikePulse = Date.now();
+        return state;
+      });
+    });
+
+    clearStrikes.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.strikes = 0;
+        return state;
+      });
+    });
+
+    AINSFeud.subscribe(render);
+  </script>
+</body>
+</html>

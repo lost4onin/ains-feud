@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AINS Feud Display</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="screen screen-display" aria-label="AINS Feud participant display">
+    <header class="topbar">
+      <div class="logo-shell">
+        <img src="ains-logo-cropped.png" alt="Artificial Intelligence National Summit Fourth Edition" />
+      </div>
+      <div class="event-label">AINS Feud</div>
+    </header>
+
+    <section class="display-stage">
+      <div class="strike-bank" id="strikeBank" aria-label="Strikes"></div>
+      <div class="question-card">
+        <h1 id="questionDisplay"></h1>
+      </div>
+
+      <div class="marquee">
+        <div class="answer-grid" id="answerGrid"></div>
+      </div>
+
+      <div class="strike-flash" id="strikeFlash" aria-hidden="true">
+        <span>X</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="feud-state.js"></script>
+  <script>
+    const questionDisplay = document.querySelector("#questionDisplay");
+    const answerGrid = document.querySelector("#answerGrid");
+    const strikeBank = document.querySelector("#strikeBank");
+    const strikeFlash = document.querySelector("#strikeFlash");
+    let lastPulse = AINSFeud.getState().strikePulse;
+
+    function renderAnswers(state) {
+      answerGrid.innerHTML = "";
+
+      AINSFeud.answerOrder.forEach((answerIndex) => {
+        const answer = state.answers[answerIndex];
+        const tile = document.createElement("div");
+        tile.className = `answer-tile${answer.revealed ? " is-revealed" : ""}`;
+
+        const answerFace = document.createElement("div");
+        answerFace.className = "answer-face";
+
+        const number = document.createElement("span");
+        number.className = "answer-number";
+        number.textContent = answerIndex + 1;
+
+        const text = document.createElement("span");
+        text.className = "answer-text";
+        text.textContent = answer.text || "Answer";
+
+        const pointsFace = document.createElement("div");
+        pointsFace.className = "points-face";
+
+        const points = document.createElement("span");
+        points.className = "answer-points";
+        points.textContent = answer.points || 0;
+
+        answerFace.append(number, text);
+        pointsFace.append(points);
+        tile.append(answerFace, pointsFace);
+        answerGrid.append(tile);
+      });
+    }
+
+    function renderStrikes(state) {
+      strikeBank.innerHTML = "";
+
+      for (let index = 1; index <= 3; index += 1) {
+        const mark = document.createElement("span");
+        mark.className = `strike-mark${state.strikes >= index ? " is-active" : ""}`;
+        mark.textContent = "X";
+        strikeBank.append(mark);
+      }
+
+      if (state.strikePulse !== lastPulse) {
+        lastPulse = state.strikePulse;
+        strikeFlash.classList.remove("is-live");
+        void strikeFlash.offsetWidth;
+        strikeFlash.classList.add("is-live");
+      }
+    }
+
+    AINSFeud.subscribe((state) => {
+      questionDisplay.textContent = state.question || "Question";
+      renderAnswers(state);
+      renderStrikes(state);
+    });
+  </script>
+</body>
+</html>
