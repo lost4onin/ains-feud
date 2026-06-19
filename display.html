@@ -49,6 +49,7 @@
   </main>
 
   <script src="feud-state.js"></script>
+  <script src="feud-audio.js"></script>
   <script>
     const questionDisplay = document.querySelector("#questionDisplay");
     const answerGrid = document.querySelector("#answerGrid");
@@ -57,7 +58,16 @@
     const displayTeamOne = document.querySelector("#displayTeamOne");
     const displayTeamTwo = document.querySelector("#displayTeamTwo");
     const displayRoundScore = document.querySelector("#displayRoundScore");
-    let lastPulse = AINSFeud.getState().strikePulse;
+    const displayEventLabel = document.querySelector(".event-label");
+    const initialState = AINSFeud.getState();
+    let lastPulse = initialState.strikePulse;
+    let previousRevealed = initialState.answers.map((answer) => Boolean(answer.revealed));
+    let previousScores = {
+      roundScore: Number(initialState.roundScore) || 0,
+      teamScores: initialState.teamScores.map((score) => Number(score) || 0)
+    };
+
+    AINSFeudAudio.bindUnlock(document);
 
     function renderAnswers(state) {
       answerGrid.innerHTML = "";
@@ -100,23 +110,69 @@
         mark.className = `strike-mark${state.strikes >= index ? " is-active" : ""}`;
         mark.textContent = "X";
         strikeBank.append(mark);
+
       }
 
       if (state.strikePulse !== lastPulse) {
         lastPulse = state.strikePulse;
+
+        strikeFlash.innerHTML = "";
+        const flashCount = state.strikes >= 4 ? 1 : Math.max(1, state.strikes);
+        for (let i = 0; i < flashCount; i++) {
+          const span = document.createElement("span");
+          span.textContent = "X";
+          strikeFlash.appendChild(span);
+        }
+
         strikeFlash.classList.remove("is-live");
         void strikeFlash.offsetWidth;
         strikeFlash.classList.add("is-live");
+        setTimeout(() => AINSFeudAudio.play("buzzer"), 10);
+
       }
     }
 
+    function renderMultiplier(state) {
+      const mult = Math.max(1, Math.min(3, Number(state.multiplier) || 1));
+
+      displayEventLabel.textContent = mult > 1 ? `AINS Feud X${mult}` : "AINS Feud";
+      displayEventLabel.classList.toggle("is-multiplier", mult > 1);
+    }
+
+    function playStateSounds(state, strikeChanged) {
+      const newlyRevealed = state.answers.some((answer, index) => (
+        Boolean(answer.revealed) && !previousRevealed[index]
+      ));
+      const scoreGained = Number(state.roundScore) > previousScores.roundScore
+        || state.teamScores.some((score, index) => Number(score) > previousScores.teamScores[index]);
+
+      if (newlyRevealed) {
+        AINSFeudAudio.play("reveal");
+      }
+
+      if (scoreGained) {
+        const delay = strikeChanged ? 820 : newlyRevealed ? 170 : 0;
+        setTimeout(() => AINSFeudAudio.play("score"), delay);
+      }
+
+      previousRevealed = state.answers.map((answer) => Boolean(answer.revealed));
+      previousScores = {
+        roundScore: Number(state.roundScore) || 0,
+        teamScores: state.teamScores.map((score) => Number(score) || 0)
+      };
+    }
+
     AINSFeud.subscribe((state) => {
+      const strikeChanged = state.strikePulse !== lastPulse;
+
       questionDisplay.textContent = state.question || "Question";
       displayTeamOne.textContent = state.teamScores[0];
       displayTeamTwo.textContent = state.teamScores[1];
       displayRoundScore.textContent = state.roundScore;
+      renderMultiplier(state);
       renderAnswers(state);
       renderStrikes(state);
+      playStateSounds(state, strikeChanged);
     });
   </script>
 </body>

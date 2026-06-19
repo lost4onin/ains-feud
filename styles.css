@@ -105,6 +105,10 @@ button {
   text-shadow: 2px 3px 0 rgba(0, 0, 0, .45);
 }
 
+.event-label.is-multiplier {
+  color: var(--gold);
+}
+
 .display-stage {
   position: relative;
   min-height: 0;
@@ -341,8 +345,10 @@ button {
   position: absolute;
   inset: 0;
   z-index: 10;
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
   background: rgba(7, 0, 32, .4);
   opacity: 0;
   pointer-events: none;
@@ -592,8 +598,11 @@ button {
 
 .score-control {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(160px, .75fr) minmax(112px, .4fr);
-  grid-template-rows: auto auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(210px, .85fr) minmax(124px, .42fr);
+  grid-template-areas:
+    "scores teams reset"
+    "scores awards multiplier"
+    "status status status";
   gap: 9px;
   padding: 10px;
   border: 2px solid rgba(7, 0, 32, .12);
@@ -602,8 +611,7 @@ button {
 }
 
 .score-control-grid {
-  grid-column: 1;
-  grid-row: 1 / -1;
+  grid-area: scores;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(100px, .8fr) minmax(0, 1fr);
   gap: 8px;
@@ -643,16 +651,60 @@ button {
 }
 
 .team-picker {
-  grid-column: 2;
-  grid-row: 1;
+  grid-area: teams;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
+.manual-awards {
+  grid-area: awards;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.manual-awards .control-button,
+.team-picker .control-button {
+  min-height: 38px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.multiplier-control {
+  grid-area: multiplier;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border-radius: 7px;
+  padding: 7px;
+  background: var(--midnight);
+  color: var(--paper);
+}
+
+.multiplier-label {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.multiplier-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.multiplier-buttons .control-button {
+  min-height: 28px;
+  padding: 4px 5px;
+  font-size: 11px;
+}
+
 .score-status {
-  grid-column: 2 / 4;
-  grid-row: 2;
+  grid-area: status;
   min-height: 32px;
   display: flex;
   align-items: center;
@@ -666,8 +718,7 @@ button {
 }
 
 #resetScores {
-  grid-column: 3;
-  grid-row: 1;
+  grid-area: reset;
 }
 
 .reveal-buttons {
@@ -919,5 +970,16 @@ button {
   .answer-tile {
     grid-template-columns: minmax(0, 1fr) 50px;
     gap: 5px;
+  }
+
+  .score-control {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "scores"
+      "teams"
+      "awards"
+      "multiplier"
+      "status"
+      "reset";
   }
 }

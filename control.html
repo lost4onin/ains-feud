@@ -62,9 +62,23 @@
             </div>
           </div>
 
-          <div class="team-picker" role="group" aria-label="First scoring team">
-            <button class="control-button dark" id="teamOneStart" type="button">Team 1 First</button>
-            <button class="control-button dark" id="teamTwoStart" type="button">Team 2 First</button>
+          <div class="team-picker" role="group" aria-label="Board control">
+            <button class="control-button dark" id="teamOneStart" type="button">Team 1 Control</button>
+            <button class="control-button dark" id="teamTwoStart" type="button">Team 2 Control</button>
+          </div>
+
+          <div class="manual-awards" role="group" aria-label="Manual bank awards">
+            <button class="control-button gold" id="awardTeamOne" type="button">Award Bank to T1</button>
+            <button class="control-button gold" id="awardTeamTwo" type="button">Award Bank to T2</button>
+          </div>
+
+          <div class="multiplier-control" aria-label="Round point multiplier">
+            <span class="multiplier-label">Round Value</span>
+            <div class="multiplier-buttons" role="group">
+              <button class="control-button dark" id="mult1" type="button">X1</button>
+              <button class="control-button dark" id="mult2" type="button">X2</button>
+              <button class="control-button dark" id="mult3" type="button">X3</button>
+            </div>
           </div>
 
           <div class="score-status" id="scoreStatus" aria-live="polite"></div>
@@ -112,11 +126,17 @@
     const roundScore = document.querySelector("#roundScore");
     const teamOneStart = document.querySelector("#teamOneStart");
     const teamTwoStart = document.querySelector("#teamTwoStart");
+    const awardTeamOne = document.querySelector("#awardTeamOne");
+    const awardTeamTwo = document.querySelector("#awardTeamTwo");
+    const mult1 = document.querySelector("#mult1");
+    const mult2 = document.querySelector("#mult2");
+    const mult3 = document.querySelector("#mult3");
     const resetScores = document.querySelector("#resetScores");
     const scoreStatus = document.querySelector("#scoreStatus");
     let isRendering = false;
     let savedRounds = [];
     let roundRequestPending = false;
+
 
     function setRoundMessage(message, isError) {
       roundMessage.textContent = message;
@@ -154,6 +174,8 @@
         state.strikes = 0;
         state.roundScore = 0;
         state.roundOwner = null;
+        state.roundClosed = false;
+        state.multiplier = 1;
         return state;
       });
     }
@@ -229,34 +251,64 @@
       return team === 0 ? 1 : 0;
     }
 
+    function activeAnswers(state) {
+      return state.answers.filter((answer) => answer.text && answer.text.trim() !== "");
+    }
+
+    function isBoardCleared(state) {
+      return activeAnswers(state).every((answer) => answer.revealed);
+    }
+
+    function roundMultiplier(state) {
+      return Math.max(1, Math.min(3, Number(state.multiplier) || 1));
+    }
+
+    function awardBankToTeam(state, team, options = {}) {
+      if (team !== 0 && team !== 1) {
+        return;
+      }
+
+      state.teamScores[team] += Number(state.roundScore) || 0;
+      state.roundScore = 0;
+      state.roundOwner = null;
+      state.roundClosed = true;
+
+      if (!options.keepStrikes) {
+        state.strikes = 0;
+      }
+    }
+
     function scoreRevealedAnswer(state, answerIndex) {
       const answer = state.answers[answerIndex];
-      const points = Number(answer.points) || 0;
+      if (answer.scoredBy !== null || state.roundClosed) {
+        return;
+      }
 
-      if (answer.scoredBy !== null || state.roundOwner === null) {
+      const basePoints = Number(answer.points) || 0;
+      const points = basePoints * roundMultiplier(state);
+
+      answer.scoredPoints = points;
+
+      if (state.roundOwner === null) {
+        answer.scoredBy = "bank";
+        state.roundScore += points;
         return;
       }
 
       if (state.strikes >= 3) {
-        const originalOwner = state.roundOwner;
-        const stealingTeam = otherTeam(originalOwner);
-        const previousBank = Number(state.roundScore) || 0;
-        const stolenBank = previousBank + points;
-
-        state.teamScores[originalOwner] = Math.max(0, state.teamScores[originalOwner] - previousBank);
-        state.teamScores[stealingTeam] += stolenBank;
-        state.roundScore = stolenBank;
-        state.roundOwner = stealingTeam;
-        state.strikes = 0;
+        const stealingTeam = otherTeam(state.roundOwner);
         answer.scoredBy = stealingTeam;
-        answer.scoredPoints = points;
+        state.roundScore += points;
+        awardBankToTeam(state, stealingTeam);
         return;
       }
 
-      state.roundScore += points;
-      state.teamScores[state.roundOwner] += points;
       answer.scoredBy = state.roundOwner;
-      answer.scoredPoints = points;
+      state.roundScore += points;
+
+      if (isBoardCleared(state)) {
+        awardBankToTeam(state, state.roundOwner);
+      }
     }
 
     function updateAnswer(index, patch) {
@@ -339,7 +391,8 @@
         button.type = "button";
         button.className = `reveal-button${answer.revealed ? " is-revealed" : ""}`;
         button.setAttribute("aria-pressed", String(answer.revealed));
-        button.disabled = !answer.revealed && state.roundOwner === null;
+        button.disabled = false;
+        
         button.addEventListener("click", () => {
           AINSFeud.setState((nextState) => {
             const nextAnswer = nextState.answers[answerIndex];
@@ -389,17 +442,36 @@
 
     function renderScoreControls(state) {
       const hasScoredAnswers = state.answers.some((answer) => answer.scoredBy !== null);
-      const ownerLabel = state.roundOwner === null ? "Pick Team 1 or Team 2 before the first reveal." : `Scoring Team ${state.roundOwner + 1}`;
-      const stealLabel = state.strikes >= 3 && state.roundOwner !== null ? ` Steal is live: Team ${otherTeam(state.roundOwner) + 1} gets the bank with one right answer.` : "";
+      const bank = Number(state.roundScore) || 0;
+      const mult = roundMultiplier(state);
+      let ownerLabel = "Face-Off Mode";
+
+      if (state.roundClosed) {
+        ownerLabel = "Round closed. Missed answers reveal without scoring.";
+      } else if (state.roundOwner !== null) {
+        ownerLabel = `Team ${state.roundOwner + 1} controls the board.`;
+      } else if (hasScoredAnswers || bank > 0) {
+        ownerLabel = "Face-off bank is live. Pick who plays.";
+      }
+
+      let stealLabel = "";
+      if (state.strikes === 3 && state.roundOwner !== null) {
+        stealLabel = ` Steal is live: Team ${otherTeam(state.roundOwner) + 1} gets the bank with one right answer.`;
+      }
 
       teamOneScore.textContent = state.teamScores[0];
       teamTwoScore.textContent = state.teamScores[1];
       roundScore.textContent = state.roundScore;
-      scoreStatus.textContent = `${ownerLabel}${stealLabel}`;
+      scoreStatus.textContent = `${ownerLabel}${stealLabel} [X${mult}]`;
       teamOneStart.classList.toggle("is-selected", state.roundOwner === 0);
       teamTwoStart.classList.toggle("is-selected", state.roundOwner === 1);
-      teamOneStart.disabled = hasScoredAnswers;
-      teamTwoStart.disabled = hasScoredAnswers;
+      teamOneStart.disabled = state.roundClosed || state.strikes >= 3;
+      teamTwoStart.disabled = state.roundClosed || state.strikes >= 3;
+      awardTeamOne.disabled = state.roundClosed || bank <= 0;
+      awardTeamTwo.disabled = state.roundClosed || bank <= 0;
+      mult1.classList.toggle("is-selected", mult === 1);
+      mult2.classList.toggle("is-selected", mult === 2);
+      mult3.classList.toggle("is-selected", mult === 3);
     }
 
     function render(state) {
@@ -520,13 +592,37 @@
         state.strikes = 0;
         state.roundScore = 0;
         state.roundOwner = null;
+        state.roundClosed = false;
         return state;
       });
     });
 
     strikeButton.addEventListener("click", () => {
       AINSFeud.setState((state) => {
-        state.strikes = Math.min(3, state.strikes + 1);
+        if (state.roundClosed || state.roundOwner === null) {
+          state.strikePulse = Date.now();
+          return state;
+        }
+
+        if (state.strikes >= 3) {
+          const originalOwner = state.roundOwner;
+          state.strikes = 4;
+          state.strikePulse = Date.now();
+          awardBankToTeam(state, originalOwner, { keepStrikes: true });
+
+          setTimeout(() => {
+            AINSFeud.setState((nextState) => {
+              if (nextState.roundClosed && nextState.strikes === 4) {
+                nextState.strikes = 0;
+              }
+              return nextState;
+            });
+          }, 2000);
+
+          return state;
+        }
+
+        state.strikes += 1;
         state.strikePulse = Date.now();
         return state;
       });
@@ -541,7 +637,7 @@
 
     teamOneStart.addEventListener("click", () => {
       AINSFeud.setState((state) => {
-        if (!state.answers.some((answer) => answer.scoredBy !== null)) {
+        if (!state.roundClosed && state.strikes < 3) {
           state.roundOwner = 0;
         }
 
@@ -551,10 +647,45 @@
 
     teamTwoStart.addEventListener("click", () => {
       AINSFeud.setState((state) => {
-        if (!state.answers.some((answer) => answer.scoredBy !== null)) {
+        if (!state.roundClosed && state.strikes < 3) {
           state.roundOwner = 1;
         }
 
+        return state;
+      });
+    });
+
+    awardTeamOne.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        awardBankToTeam(state, 0);
+        return state;
+      });
+    });
+
+    awardTeamTwo.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        awardBankToTeam(state, 1);
+        return state;
+      });
+    });
+
+    mult1.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.multiplier = 1;
+        return state;
+      });
+    });
+
+    mult2.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.multiplier = 2;
+        return state;
+      });
+    });
+
+    mult3.addEventListener("click", () => {
+      AINSFeud.setState((state) => {
+        state.multiplier = 3;
         return state;
       });
     });
@@ -564,7 +695,9 @@
         state.teamScores = [0, 0];
         state.roundScore = 0;
         state.roundOwner = null;
+        state.roundClosed = false;
         state.strikes = 0;
+        state.multiplier = 1;
         state.answers = state.answers.map(resetAnswerScore);
         return state;
       });

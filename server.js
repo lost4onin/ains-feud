@@ -17,15 +17,77 @@ const connectionOptions = {
 
 let pool;
 
-const seedAnswers = [
-  [1, "Write Emails", 32],
-  [2, "Research", 24],
-  [3, "Code", 18],
-  [4, "Make Slides", 12],
-  [5, "Summarize Notes", 8],
-  [6, "Design Ideas", 6],
-  [7, "Translate", 4],
-  [8, "Plan Events", 2]
+const seedRounds = [
+  {
+    name: "Round 1",
+    question: "Name something AI helps people do faster",
+    answers: [
+      ["Write Emails", 32],
+      ["Research", 24],
+      ["Code", 18],
+      ["Make Slides", 12],
+      ["Summarize Notes", 8],
+      ["Design Ideas", 6],
+      ["Translate", 4],
+      ["Plan Events", 2]
+    ]
+  },
+  {
+    name: "Round 2",
+    question: "Name a job where AI can be a useful assistant",
+    answers: [
+      ["Teacher", 28],
+      ["Doctor", 22],
+      ["Programmer", 18],
+      ["Designer", 12],
+      ["Marketer", 8],
+      ["Engineer", 6],
+      ["Lawyer", 4],
+      ["Student", 2]
+    ]
+  },
+  {
+    name: "Round 3",
+    question: "Name something people ask a chatbot to do",
+    answers: [
+      ["Explain A Topic", 30],
+      ["Write A Message", 20],
+      ["Fix Code", 16],
+      ["Make A Plan", 12],
+      ["Translate Text", 8],
+      ["Create Ideas", 6],
+      ["Summarize A File", 5],
+      ["Solve Homework", 3]
+    ]
+  },
+  {
+    name: "Round 4",
+    question: "Name a concern people have about artificial intelligence",
+    answers: [
+      ["Job Loss", 27],
+      ["Privacy", 21],
+      ["Fake News", 16],
+      ["Bias", 12],
+      ["Security", 9],
+      ["Cheating", 7],
+      ["Cost", 5],
+      ["Too Much Trust", 3]
+    ]
+  },
+  {
+    name: "Round 5",
+    question: "Name a place you expect to see AI in the future",
+    answers: [
+      ["Hospitals", 26],
+      ["Schools", 22],
+      ["Cars", 18],
+      ["Homes", 12],
+      ["Banks", 8],
+      ["Airports", 6],
+      ["Factories", 5],
+      ["Government", 3]
+    ]
+  }
 ];
 
 function validateRound(body) {
@@ -54,6 +116,41 @@ function validateRound(body) {
       points: Math.max(0, Math.min(999, Number(answer.points) || 0))
     }))
   };
+}
+
+async function insertSeedRound(connection, round) {
+  const [result] = await connection.execute(
+    "INSERT INTO rounds (name, question) VALUES (?, ?)",
+    [round.name, round.question]
+  );
+  await connection.query(
+    "INSERT INTO round_answers (round_id, position, answer_text, points) VALUES ?",
+    [round.answers.map(([text, points], index) => [result.insertId, index + 1, text, points])]
+  );
+}
+
+async function ensureSeedRounds() {
+  const [existingRounds] = await pool.query("SELECT name FROM rounds");
+  const existingNames = new Set(existingRounds.map((round) => round.name));
+  const missingRounds = seedRounds.filter((round) => !existingNames.has(round.name));
+
+  if (!missingRounds.length) {
+    return;
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const round of missingRounds) {
+      await insertSeedRound(connection, round);
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function initializeDatabase() {
@@ -92,27 +189,7 @@ async function initializeDatabase() {
     ) ENGINE=InnoDB
   `);
 
-  const [[{ count }]] = await pool.query("SELECT COUNT(*) AS count FROM rounds");
-  if (Number(count) === 0) {
-    const connection = await pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      const [result] = await connection.execute(
-        "INSERT INTO rounds (name, question) VALUES (?, ?)",
-        ["Round 1", "Name something AI helps people do faster"]
-      );
-      await connection.query(
-        "INSERT INTO round_answers (round_id, position, answer_text, points) VALUES ?",
-        [seedAnswers.map(([position, text, points]) => [result.insertId, position, text, points])]
-      );
-      await connection.commit();
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  }
+  await ensureSeedRounds();
 }
 
 async function getRound(id) {
